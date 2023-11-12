@@ -14,7 +14,7 @@ fi
 # Fixed config
 : "${TYPE:=double}"
 : "${MAX_THREADS:=64}"
-: "${REPEAT_METHOD:=5}"
+: "${REPEAT_METHOD:=100}"
 # Define macros (dont forget to add here)
 DEFINES=(""
 "-DTYPE=$TYPE"
@@ -23,6 +23,8 @@ DEFINES=(""
 )
 
 # Run
+export OMP_PLACES="cores"
+export OMP_PROC_BIND="spread"
 g++ ${DEFINES[*]} -std=c++17 -O3 -fopenmp main.cxx
 stdbuf --output=L ./a.out 1000000000 2>&1 | tee -a "$out"
 

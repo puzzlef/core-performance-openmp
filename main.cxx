@@ -42,7 +42,7 @@ inline void populateRandomValues(vector<T>& a) {
   random_device dev;
   default_random_engine rnd(dev());
   uniform_real_distribution<T> dis(0, 1);
-  for (size_t i=0; i<min(N, 1024); ++i)
+  for (size_t i=0; i<min(N, size_t(1024)); ++i)
     a[i] = dis(rnd);
   for (size_t i=1024; i<N; ++i)
     a[i] = a[i % 1024];
@@ -98,9 +98,10 @@ inline auto computeSumTrackedOmp(const vector<T>& x) {
     a[t]->coreId = sched_getcpu();
     auto t0      = chrono::high_resolution_clock::now();
     // Compute sum.
-    *sum[t]    = T();
+    T sum  = T();
     for (size_t i=t; i<N; ++i)
-      *sum[t] += x[i];
+      sum += x[i];
+    a[t]->sum = sum;
     // Compute time.
     auto t1    = chrono::high_resolution_clock::now();
     a[t]->time = chrono::duration_cast<chrono::microseconds>(t1 - t0).count() / 1000.0f;
@@ -120,14 +121,17 @@ inline auto computeSumTrackedOmp(const vector<T>& x) {
 template <class T>
 inline void runExperiment(const vector<T>& x) {
   int repeat = REPEAT_METHOD;
-  int    T = omp_get_max_threads();
+  int   TH = omp_get_max_threads();
   size_t N = x.size();
   T sum = computeSumOmp(x);
   for (int l=0; l < repeat; ++l) {
     auto a = computeSumTrackedOmp(x);
-    for (int t=0; t<T; ++t) {
+    for (int t=0; t<TH; ++t) {
+      int node = a[t]->coreId % 2;
+      int core = a[t]->coreId;
+      double time  = a[t]->time;
       double flops = 1000.0 * N / a[t]->time;
-      printf("{run=%02d, thread=%03d, core=%03d, time=%09.1fms, flops=%.2e}\n", l, t, a[t]->coreId, a[t]->time, flops);
+      printf("{run=%03d, thread=%03d, node=%01d, core=%03d, time=%09.4fms, flops=%.4e}\n", l, t, node, core, time, flops);
     }
   }
 }
@@ -143,9 +147,11 @@ int main(int argc, char **argv) {
   using  T = TYPE;
   size_t N = argc > 1? atoi(argv[1]) : 1000000;
   omp_set_num_threads(MAX_THREADS);
-  LOG("OMP_NUM_THREADS=%d\n", MAX_THREADS);
+  printf("OMP_NUM_THREADS=%d\n", MAX_THREADS);
   vector<T> x(N);
   populateRandomValues(x);
   runExperiment(x);
+  printf("\n");
+  return 0;
 }
 #pragma endregion
